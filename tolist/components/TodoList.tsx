@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface Todo {
   id: number;
@@ -11,15 +11,30 @@ interface Todo {
 export default function TodoList() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [inputValue, setInputValue] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const selectAllRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate =
+        selectedIds.size > 0 && selectedIds.size < todos.length;
+    }
+  }, [selectedIds.size, todos.length]);
 
   const addTodo = () => {
-    if (inputValue.trim()) {
-      const newTodo: Todo = {
-        id: Date.now(),
-        text: inputValue.trim(),
-        completed: false,
-      };
-      setTodos([...todos, newTodo]);
+    const trimmed = inputValue.trim();
+    if (trimmed) {
+      const exists = todos.some(
+        (todo) => todo.text.toLowerCase() === trimmed.toLowerCase()
+      );
+      if (!exists) {
+        const newTodo: Todo = {
+          id: Date.now(),
+          text: trimmed,
+          completed: false,
+        };
+        setTodos([...todos, newTodo]);
+      }
       setInputValue("");
     }
   };
@@ -34,6 +49,32 @@ export default function TodoList() {
 
   const deleteTodo = (id: number) => {
     setTodos(todos.filter((todo) => todo.id !== id));
+    const newSelected = new Set(selectedIds);
+    newSelected.delete(id);
+    setSelectedIds(newSelected);
+  };
+
+  const toggleSelect = (id: number) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === todos.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(todos.map((todo) => todo.id)));
+    }
+  };
+
+  const batchDelete = () => {
+    setTodos(todos.filter((todo) => !selectedIds.has(todo.id)));
+    setSelectedIds(new Set());
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -65,6 +106,29 @@ export default function TodoList() {
         </button>
       </div>
 
+      {todos.length > 0 && (
+        <div className="flex items-center justify-between mb-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              ref={selectAllRef}
+              type="checkbox"
+              checked={selectedIds.size === todos.length && todos.length > 0}
+              onChange={toggleSelectAll}
+              className="w-5 h-5 text-blue-500 rounded focus:ring-blue-500 cursor-pointer"
+            />
+            <span className="text-gray-700 dark:text-gray-300">全选</span>
+          </label>
+          {selectedIds.size > 0 && (
+            <button
+              onClick={batchDelete}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm"
+            >
+              删除已选择 ({selectedIds.size})
+            </button>
+          )}
+        </div>
+      )}
+
       <ul className="space-y-2">
         {todos.map((todo) => (
           <li
@@ -75,11 +139,14 @@ export default function TodoList() {
           >
             <input
               type="checkbox"
-              checked={todo.completed}
-              onChange={() => toggleTodo(todo.id)}
-              className="w-5 h-5 text-blue-500 rounded focus:ring-blue-500"
+              checked={selectedIds.has(todo.id)}
+              onChange={() => toggleSelect(todo.id)}
+              className="w-5 h-5 text-blue-500 rounded focus:ring-blue-500 cursor-pointer"
             />
-            <span className="flex-1 text-gray-800 dark:text-white">
+            <span
+              onClick={() => toggleTodo(todo.id)}
+              className="flex-1 text-gray-800 dark:text-white cursor-pointer"
+            >
               {todo.text}
             </span>
             <button
